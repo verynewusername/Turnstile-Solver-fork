@@ -1,5 +1,5 @@
 # Name of the workflow
-name: Docker Build and Push
+name: Docker Build and Push to GHCR
 
 # Controls when the action will run. 
 on:
@@ -19,45 +19,51 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
+    # IMPORTANT: Grant the GITHUB_TOKEN permissions to write packages
+    permissions:
+      contents: read
+      packages: write
+
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # 1. Checkout your repository code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Set up QEMU. This is needed to build for ARM on an x86 runner.
+      # 2. Set up QEMU for multi-platform builds
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # 3. Set up Docker Buildx. This is the magic that allows multi-platform builds.
+      # 3. Set up Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 4. Log in to the Container Registry (Docker Hub in this example)
-      - name: Log in to Docker Hub
+      # 4. Log in to GitHub Container Registry (GHCR)
+      # This uses the GITHUB_TOKEN, which is automatically available to the workflow.
+      # No secrets are needed.
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
           
       # 5. Extract metadata (tags and labels) for the Docker image
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          # IMPORTANT: Change this to your image name
-          images: your-dockerhub-username/your-repo-name
+          # The image name will be ghcr.io/your-github-username/your-repo-name
+          images: ghcr.io/${{ github.repository }}
 
-      # 6. Build and push the multi-platform image
+      # 6. Build and push the multi-platform image to GHCR
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          # This is the key part: build for both amd64 and arm64
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Enable build cache to speed up future builds
           cache-from: type=gha
           cache-to: type=gha,mode=max
