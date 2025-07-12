@@ -1,0 +1,63 @@
+# Name of the workflow
+name: Docker Build and Push
+
+# Controls when the action will run. 
+on:
+  # Triggers the workflow on push events but only for the main branch
+  push:
+    branches: [ "main" ]
+    # Also trigger on version tags like v1.0, v1.2.3, etc.
+    tags:
+      - 'v*.*.*'
+      
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build-and-push:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # 1. Checkout your repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up QEMU. This is needed to build for ARM on an x86 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # 3. Set up Docker Buildx. This is the magic that allows multi-platform builds.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. Log in to the Container Registry (Docker Hub in this example)
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      # 5. Extract metadata (tags and labels) for the Docker image
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # IMPORTANT: Change this to your image name
+          images: your-dockerhub-username/your-repo-name
+
+      # 6. Build and push the multi-platform image
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          # This is the key part: build for both amd64 and arm64
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Enable build cache to speed up future builds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
